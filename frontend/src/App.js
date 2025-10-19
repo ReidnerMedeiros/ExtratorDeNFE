@@ -5,7 +5,9 @@ import './App.css';
 function App() {
   const [file, setFile] = useState(null);
   const [jsonData, setJsonData] = useState(null);
+  const [resultadoLancamento, setResultadoLancamento] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingLancamento, setLoadingLancamento] = useState(false);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -22,11 +24,26 @@ function App() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setJsonData(response.data);
+      setResultadoLancamento(null);
     } catch (error) {
       console.error(error);
       alert('Erro ao processar: ' + (error.response?.data?.error || 'Erro desconhecido'));
     }
     setLoading(false);
+  };
+
+  const handleLancarRegistro = async () => {
+    if (!jsonData) return;
+    setLoadingLancamento(true);
+
+    try {
+      const response = await axios.post('http://localhost:5000/lancar-registro', jsonData);
+      setResultadoLancamento(response.data);
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao lançar registro: ' + (error.response?.data?.error || 'Erro desconhecido'));
+    }
+    setLoadingLancamento(false);
   };
 
   // Função auxiliar para formatar valores monetários
@@ -51,6 +68,13 @@ function App() {
           className="submit-button"
         >
           {loading ? 'Processando...' : 'Extrair Dados'}
+        </button>
+        <button
+          onClick={handleLancarRegistro}
+          disabled={loadingLancamento || !jsonData}
+          className="submit-button"
+        >
+          {loadingLancamento ? 'Lançando...' : 'Lançar Registro'}
         </button>
       </div>
       {jsonData && (
@@ -126,6 +150,17 @@ function App() {
             <h3>JSON Completo</h3>
             <pre className="json-output">{JSON.stringify(jsonData, null, 2)}</pre>
           </div>
+        </div>
+      )}
+      {resultadoLancamento && (
+        <div className="json-container" style={{ marginTop: '30px' }}>
+          <h2 className="json-title">Resultado do Lançamento</h2>
+          {resultadoLancamento.mensagens.map((msg, index) => (
+            <p key={index}><strong>{msg.tipo}:</strong> {msg.mensagem}</p>
+          ))}
+          {resultadoLancamento.sucesso && (
+            <p style={{ color: 'green' }}>Registro lançado com sucesso!</p>
+          )}
         </div>
       )}
     </div>
