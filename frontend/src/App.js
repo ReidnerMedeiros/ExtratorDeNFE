@@ -11,42 +11,90 @@ function App() {
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
+    setResultadoLancamento(null);
   };
 
   const handleSubmit = async () => {
-    if (!file) return;
+    if (!file) {
+      alert('Por favor, selecione um arquivo PDF.');
+      return;
+    }
     setLoading(true);
     const formData = new FormData();
     formData.append('pdf', file);
 
     try {
-      const response = await axios.post('http://localhost:5000/processar-pdf', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/processar-pdf`,
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
+      );
       setJsonData(response.data);
       setResultadoLancamento(null);
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao processar PDF:', error);
+      console.log('Detalhes do erro:', error.message, error.code, error.config);
       alert('Erro ao processar: ' + (error.response?.data?.error || 'Erro desconhecido'));
     }
     setLoading(false);
   };
 
-  const handleLancarRegistro = async () => {
-    if (!jsonData) return;
+  const handleLancarRegistro = async (dados = jsonData, confirmado = false) => {
+    if (!dados) {
+      alert('Nenhum dado extraído para lançar.');
+      return;
+    }
     setLoadingLancamento(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/lancar-registro', jsonData);
+      const payload = { ...dados };
+      if (confirmado) {
+        payload.adicionarParcelasConfirmado = true;
+      }
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/lancar-registro`,
+        payload
+      );
       setResultadoLancamento(response.data);
     } catch (error) {
-      console.error(error);
-      alert('Erro ao lançar registro: ' + (error.response?.data?.error || 'Erro desconhecido'));
+      console.error('Erro ao lançar registro:', error);
+      console.log('Detalhes do erro:', error.message, error.code, error.config);
+      const errorMessage = error.response?.data?.error || 'Erro desconhecido';
+      if (errorMessage.includes('Parcelas já existem para esta nota fiscal')) {
+        const confirmar = window.confirm(
+          'Parcelas já existem para esta nota fiscal. Deseja adicionar mais parcelas?'
+        );
+        if (confirmar) {
+          await handleLancarRegistro(dados, true);
+        } else {
+          setResultadoLancamento({
+            mensagens: [{ tipo: 'ERRO', mensagem: 'Operação cancelada pelo usuário.' }],
+            sucesso: false,
+          });
+        }
+      } else {
+        alert('Erro ao lançar registro: ' + errorMessage);
+      }
     }
     setLoadingLancamento(false);
   };
 
-  // Função auxiliar para formatar valores monetários
+  const handleAdicionarParcelas = () => {
+    const confirmar = window.confirm(
+      'Parcelas já existem para esta nota fiscal. Deseja adicionar mais parcelas?'
+    );
+    if (confirmar) {
+      handleLancarRegistro(jsonData, true);
+    } else {
+      setResultadoLancamento({
+        mensagens: [{ tipo: 'ERRO', mensagem: 'Operação cancelada pelo usuário.' }],
+        sucesso: false,
+      });
+    }
+  };
+
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return 'N/A';
     return `R$ ${Number(value).toFixed(2)}`;
@@ -70,12 +118,21 @@ function App() {
           {loading ? 'Processando...' : 'Extrair Dados'}
         </button>
         <button
-          onClick={handleLancarRegistro}
+          onClick={() => handleLancarRegistro()}
           disabled={loadingLancamento || !jsonData}
           className="submit-button"
         >
           {loadingLancamento ? 'Lançando...' : 'Lançar Registro'}
         </button>
+        {resultadoLancamento?.mensagens.some(msg => msg.mensagem.includes('Parcelas já existem')) && (
+          <button
+            onClick={handleAdicionarParcelas}
+            disabled={loadingLancamento}
+            className="submit-button"
+          >
+            Adicionar Mais Parcelas
+          </button>
+        )}
       </div>
       {jsonData && (
         <div className="json-container">
@@ -156,7 +213,9 @@ function App() {
         <div className="json-container" style={{ marginTop: '30px' }}>
           <h2 className="json-title">Resultado do Lançamento</h2>
           {resultadoLancamento.mensagens.map((msg, index) => (
-            <p key={index}><strong>{msg.tipo}:</strong> {msg.mensagem}</p>
+            <p key={index} style={{ color: msg.tipo === 'ERRO' ? 'red' : msg.tipo === 'SUCESSO' ? 'green' : 'black' }}>
+              <strong>{msg.tipo}:</strong> {msg.mensagem}
+            </p>
           ))}
           {resultadoLancamento.sucesso && (
             <p style={{ color: 'green' }}>Registro lançado com sucesso!</p>

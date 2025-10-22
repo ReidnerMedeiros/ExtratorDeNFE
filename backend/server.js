@@ -6,18 +6,12 @@ const fs = require('fs');
 const path = require('path');
 const agente1 = require('./agente1');
 const agente2 = require('./agente2');
-const { AppDataSource } = require('./data-source');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
 app.use(express.json());
-
-// Inicializa o TypeORM
-AppDataSource.initialize()
-  .then(() => console.log('TypeORM conectado ao banco de dados'))
-  .catch(error => console.error('Erro ao conectar TypeORM:', error));
 
 app.post('/processar-pdf', upload.single('pdf'), async (req, res) => {
   try {
@@ -46,6 +40,8 @@ app.post('/lancar-registro', async (req, res) => {
     res.status(500).json({ error: `Erro ao lançar registro: ${error.message}` });
   }
 });
+
+
 
 app.listen(5000, () => {
   console.log('Backend rodando na porta 5000');
