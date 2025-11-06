@@ -1,14 +1,21 @@
 Processador de Notas Fiscais
+
 Descrição
+
 Este projeto foi desenvolvido como parte da disciplina Prática de Engenharia de Software da Universidade de Rio Verde (UniRV). O Processador de Notas Fiscais é uma aplicação web que permite a extração de dados de notas fiscais em formato PDF e o registro automático desses dados em um banco de dados. A aplicação utiliza inteligência artificial para extrair informações como fornecedor, faturado, produtos, parcelas e classificação de despesa, e realiza o armazenamento estruturado em um banco de dados relacional.
+
 O sistema é composto por um frontend em React para interação com o usuário e um backend em Node.js integrado com o banco de dados Supabase. A extração de dados do PDF é feita pelo agenteExtrator.js , que utiliza a API do Gemini, enquanto o registro no banco é gerenciado pelo agenteManipulador.js .
 Funcionalidades
 
 Upload de PDF: Permite ao usuário fazer upload de arquivos PDF de notas fiscais.
 Extração de Dados: Extrai informações como fornecedor (CNPJ, razão social), faturado (CPF/CNPJ, nome), número da nota fiscal, data de emissão, produtos, parcelas, valor total, ICMS e classificação de despesa.
+
 Registro no Banco de Dados: Insere os dados extraídos nas tabelas tb_pessoas, tb_classificacao, tb_movimentocontas, tb_parcelascontas e tb_movimentocontas_classificacao no Supabase.
+
 Validação de Duplicatas: Impede o registro de parcelas duplicadas para a mesma nota fiscal, exibindo uma mensagem de erro clara.
+
 Interface Amigável: Interface em React com exibição dos dados extraídos e resultados do lançamento, incluindo mensagens de sucesso e erro com IDs das entidades criadas ou existentes.
+
 
 Tecnologias Utilizadas
 
@@ -19,18 +26,31 @@ Extração de PDF: API do Gemini (via agenteExtrator.js)
 Outras Ferramentas: Docker, Vite (para desenvolvimento do frontend)
 
 Estrutura do Projeto
+
 NFEExtrator/
+
 ├── src/
+
 │   ├── App.js           # Componente principal do frontend
+
 │   ├── App.css          # Estilos do frontend
+
 │   ├── agenteExtrator.js   # Extrai dados de PDFs (anteriormente agente1.js)
+
 │   ├── agenteManipulador.js # Gerencia registros no banco (anteriormente agente2.js)
+
 ├── server.js        # Configuração do servidor Express
+
 ├── .env                 # Variáveis de ambiente (API_URL, Supabase, Gemini)
+
 ├── Dockerfile           # Configuração para container Docker
+
 ├── .dockerignore        # Arquivos ignorados pelo Docker
+
 ├── package.json         # Dependências e scripts
+
 ├── README.md            # Este arquivo
+
 
 Pré-requisitos
 
@@ -218,8 +238,8 @@ Contribuições
 Este projeto foi desenvolvido como trabalho acadêmico e não está aberto para contribuições externas no momento. Sugestões ou melhorias podem ser discutidas com a equipe da disciplina Prática de Engenharia de Software na UniRV.
 Autores
 
-[Seu Nome] - Desenvolvedor principal
-Orientador: [Nome do Professor, se aplicável]
+[Reidner e Laura] - Desenvolvedor principal
+Orientador: [João Dionisio Paraiba]
 
 Licença
 Este projeto é de uso exclusivo para fins acadêmicos na UniRV. Não possui licença pública.
