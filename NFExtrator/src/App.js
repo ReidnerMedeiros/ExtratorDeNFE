@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import ConsultaRAG from "./ConsultaRAG";//
 import './App.css';
 
 // Log para depurar a URL da API
@@ -11,6 +12,7 @@ function App() {
   const [resultadoLancamento, setResultadoLancamento] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingLancamento, setLoadingLancamento] = useState(false);
+  const [tela, setTela] = useState("extrator");//
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -126,13 +128,17 @@ function App() {
               <strong>{msg.tipo}:</strong> {msg.mensagem}
             </p>
           ))}
-          {resultadoLancamento.sucesso && (
+         {resultadoLancamento.sucesso && (
             <p style={{ color: 'green' }}>Registro lançado com sucesso!</p>
           )}
         </div>
       )}
+
+      {/* 🧠 NOVO BLOCO: CONSULTA INTELIGENTE RAG */}
+      <ConsultaRAG />
     </div>
   );
 }
+
 
 export default App;

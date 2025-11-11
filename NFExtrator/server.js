@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const agente1 = require('./agente1');
 const agente2 = require('./agente2');
+const agente3_rag = require('./agente3_rag');//
 
 const app = express();
 const uploadDir = path.join(__dirname, 'uploads');
@@ -49,6 +50,18 @@ app.post('/api/lancar-registro', async (req, res) => {
   }
 });
 
+// 🔹 Rota agente 3 (RAG)
+app.post('/api/consulta-rag', async (req, res) => {
+  try {
+    const { pergunta } = req.body;
+    const resultado = await agente3_rag(pergunta);
+    res.json(resultado);
+  } catch (error) {
+    console.error('Erro ao processar consulta RAG:', error.message);
+    res.status(500).json({ error: 'Erro ao processar consulta RAG.' });
+  }
+});
+
 // Rota catch-all para o frontend (React)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
@@ -64,3 +77,4 @@ const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Backend rodando na porta ${port}`);
 });
+
