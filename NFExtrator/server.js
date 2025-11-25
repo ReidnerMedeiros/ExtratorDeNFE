@@ -6,33 +6,36 @@ const fs = require('fs');
 const path = require('path');
 const agente1 = require('./agente1');
 const agente2 = require('./agente2');
-const agente3_rag = require('./agente3_rag');//
+const agente3_rag = require('./agente3_rag');
 
 const app = express();
+
+// Criar pasta uploads automaticamente
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 const upload = multer({ dest: 'uploads/' });
 
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? false : ['http://localhost:3000'],
-}));
+// CORS – liberar tudo (Render precisa disso)
+app.use(cors());
+
 app.use(express.json());
 
-// Servir arquivos estáticos do frontend (pasta build)
+// Servir frontend (Vite gerando pasta build)
 app.use(express.static(path.join(__dirname, 'build')));
 
-// Rotas da API com prefixo /api
+// ===================== API ROUTES ===================== //
+
 app.post('/api/processar-pdf', upload.single('pdf'), async (req, res) => {
   try {
-    if (!req.file) {
-      throw new Error('Nenhum arquivo PDF enviado');
-    }
+    if (!req.file) throw new Error('Nenhum arquivo PDF enviado');
+
     const filePath = req.file.path;
     const jsonResponse = await agente1(filePath);
     fs.unlinkSync(filePath);
     res.json(jsonResponse);
+
   } catch (error) {
     console.error('Erro no processamento do PDF:', error.message, error.stack);
     res.status(500).json({ error: `Erro ao processar o PDF: ${error.message}` });
@@ -50,7 +53,6 @@ app.post('/api/lancar-registro', async (req, res) => {
   }
 });
 
-// 🔹 Rota agente 3 (RAG)
 app.post('/api/consulta-rag', async (req, res) => {
   try {
     const { pergunta } = req.body;
@@ -62,19 +64,19 @@ app.post('/api/consulta-rag', async (req, res) => {
   }
 });
 
-// Rota catch-all para o frontend (React)
+// ===================== FRONT CATCH-ALL ===================== //
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// Middleware de erro
+// ===================== ERROR HANDLER ===================== //
 app.use((err, req, res, next) => {
   console.error('Erro não tratado:', err.message, err.stack);
   res.status(500).json({ error: 'Erro interno do servidor' });
 });
 
+// ===================== START SERVER ===================== //
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Backend rodando na porta ${port}`);
 });
-
