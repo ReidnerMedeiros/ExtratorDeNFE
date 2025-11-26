@@ -5,7 +5,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const modelEmbedding = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const modelEmbedding = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 const modelResposta = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 async function gerarEmbedding(texto) {
