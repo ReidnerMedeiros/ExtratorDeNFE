@@ -5,8 +5,8 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
-// === SUPABASE (inicia antes de tudo) ===
-const { createClient } = require('@supabase/supabase的应用');
+// === SUPABASE – CORRIGIDO! ===
+const { createClient } = require('@supabase/supabase-js');  // ← AGORA CERTO
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY
@@ -30,12 +30,11 @@ app.use(express.static(path.join(__dirname, 'build')));
 // ====================== LAZY LOAD DOS AGENTES ======================
 let agente1, agente2, agente3_rag;
 
-// 1. Extrair PDF
+// Extrair PDF
 app.post('/api/processar-pdf', upload.single('pdf'), async (req, res) => {
   try {
     if (!agente1) agente1 = require('./agente1');
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo PDF enviado' });
-
     const filePath = req.file.path;
     const jsonResponse = await agente1(filePath);
     fs.unlinkSync(filePath);
@@ -46,7 +45,7 @@ app.post('/api/processar-pdf', upload.single('pdf'), async (req, res) => {
   }
 });
 
-// 2. Lançar registro
+// Lançar registro
 app.post('/api/lancar-registro', async (req, res) => {
   try {
     if (!agente2) agente2 = require('./agente2');
@@ -58,7 +57,7 @@ app.post('/api/lancar-registro', async (req, res) => {
   }
 });
 
-// 3. Consulta RAG
+// Consulta RAG
 app.post('/api/consulta-rag', async (req, res) => {
   try {
     if (!agente3_rag) agente3_rag = require('./agente3_rag');
@@ -66,14 +65,13 @@ app.post('/api/consulta-rag', async (req, res) => {
     res.json(resultado);
   } catch (error) {
     console.error('Erro consulta RAG:', error);
-    console.error(error.stack);
     res.status(500).json({ error: 'Erro na consulta inteligente.' });
   }
 });
 
-// ================== ROTAS CADASTROS – 100% COM tb_ ==================
+// ================== ROTAS CADASTROS – COM tb_ ==================
+// (todas já corrigidas com nomes reais das suas tabelas)
 
-// --- CLASSIFICAÇÃO ---
 app.get('/api/classificacao', async (req, res) => {
   const { tipo, status = 'ATIVO' } = req.query;
   let query = supabase.from('tb_classificacao').select('*');
@@ -95,10 +93,7 @@ app.get('/api/classificacao/buscar', async (req, res) => {
 
 app.post('/api/classificacao', async (req, res) => {
   const { descricao, tipo } = req.body;
-  const { data, error } = await supabase
-    .from('tb_classificacao')
-    .insert({ descricao: descricao.trim(), tipo, status: 'ATIVO' })
-    .select();
+  const { data, error } = await supabase.from('tb_classificacao').insert({ descricao: descricao.trim(), tipo, status: 'ATIVO' }).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data[0]);
 });
@@ -106,53 +101,35 @@ app.post('/api/classificacao', async (req, res) => {
 app.put('/api/classificacao/:id', async (req, res) => {
   const { id } = req.params;
   const { descricao } = req.body;
-  const { data, error } = await supabase
-    .from('tb_classificacao')
-    .update({ descricao: descricao.trim() })
-    .eq('id', id)
-    .select();
+  const { data, error } = await supabase.from('tb_classificacao').update({ descricao: descricao.trim() }).eq('id', id).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data[0]);
 });
 
 app.delete('/api/classificacao/:id', async (req, res) => {
   const { id } = req.params;
-  const { error } = await supabase
-    .from('tb_classificacao')
-    .update({ status: 'DESATIVADO' })
-    .eq('id', id);
+  const { error } = await supabase.from('tb_classificacao').update({ status: 'DESATIVADO' }).eq('id', id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ sucesso: true });
 });
 
-// --- CONTAS ---
 app.get('/api/contas', async (req, res) => {
   const { status = 'ATIVO' } = req.query;
-  const { data, error } = await supabase
-    .from('tb_contas')
-    .select('*')
-    .eq('status', status);
+  const { data, error } = await supabase.from('tb_contas').select('*').eq('status', status);
   if (error) return res.status(500).json({ error: error.message });
   res.json(data || []);
 });
 
 app.get('/api/contas/buscar', async (req, res) => {
   const { termo } = req.query;
-  const { data, error } = await supabase
-    .from('tb_contas')
-    .select('*')
-    .ilike('descricao', `%${termo}%`)
-    .eq('status', 'ATIVO');
+  const { data, error } = await supabase.from('tb_contas').select('*').ilike('descricao', `%${termo}%`).eq('status', 'ATIVO');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data || []);
 });
 
 app.post('/api/contas', async (req, res) => {
   const { descricao } = req.body;
-  const { data, error } = await supabase
-    .from('tb_contas')
-    .insert({ descricao: descricao.trim(), status: 'ATIVO' })
-    .select();
+  const { data, error } = await supabase.from('tb_contas').insert({ descricao: descricao.trim(), status: 'ATIVO' }).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data[0]);
 });
@@ -160,26 +137,18 @@ app.post('/api/contas', async (req, res) => {
 app.put('/api/contas/:id', async (req, res) => {
   const { id } = req.params;
   const { descricao } = req.body;
-  const { data, error } = await supabase
-    .from('tb_contas')
-    .update({ descricao: descricao.trim() })
-    .eq('id', id)
-    .select();
+  const { data, error } = await supabase.from('tb_contas').update({ descricao: descricao.trim() }).eq('id', id).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data[0]);
 });
 
 app.delete('/api/contas/:id', async (req, res) => {
   const { id } = req.params;
-  const { error } = await supabase
-    .from('tb_contas')
-    .update({ status: 'INATIVO' })
-    .eq('id', id);
+  const { error } = await supabase.from('tb_contas').update({ status: 'INATIVO' }).eq('id', id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ sucesso: true });
 });
 
-// --- PESSOAS ---
 app.get('/api/pessoas', async (req, res) => {
   const { tipo, status = 'ATIVO' } = req.query;
   let query = supabase.from('tb_pessoas').select('*').eq('status', status);
@@ -201,15 +170,7 @@ app.get('/api/pessoas/buscar', async (req, res) => {
 
 app.post('/api/pessoas', async (req, res) => {
   const { razaosocial, documento, tipo } = req.body;
-  const { data, error } = await supabase
-    .from('tb_pessoas')
-    .insert({
-      tipo,
-      razaosocial: razaosocial.trim(),
-      documento: documento.trim(),
-      status: 'ATIVO'
-    })
-    .select();
+  const { data, error } = await supabase.from('tb_pessoas').insert({ tipo, razaosocial: razaosocial.trim(), documento: documento.trim(), status: 'ATIVO' }).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data[0]);
 });
@@ -217,34 +178,22 @@ app.post('/api/pessoas', async (req, res) => {
 app.put('/api/pessoas/:id', async (req, res) => {
   const { id } = req.params;
   const { razaosocial, documento } = req.body;
-  const { data, error } = await supabase
-    .from('tb_pessoas')
-    .update({
-      razaosocial: razaosocial.trim(),
-      documento: documento.trim()
-    })
-    .eq('id', id)
-    .select();
+  const { data, error } = await supabase.from('tb_pessoas').update({ razaosocial: razaosocial.trim(), documento: documento.trim() }).eq('id', id).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data[0]);
 });
 
 app.delete('/api/pessoas/:id', async (req, res) => {
   const { id } = req.params;
-  const { error } = await supabase
-    .from('tb_pessoas')
-    .update({ status: 'DESATIVADO' })
-    .eq('id', id);
+  const { error } = await supabase.from('tb_pessoas').update({ status: 'DESATIVADO' }).eq('id', id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ sucesso: true });
 });
 
-// ================== FRONTEND ==================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// ================== INICIAR SERVIDOR ==================
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
