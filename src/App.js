@@ -1,7 +1,7 @@
 // src/App.js ← VERSÃO FINAL OFICIAL (use esta!)
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Layout from './Layout';
+import Layout from './components/Layout';
 
 // Páginas
 import ExtrairNota from './pages/ExtrairNota';
