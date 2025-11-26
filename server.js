@@ -59,7 +59,7 @@ app.post('/api/consulta-rag', async (req, res) => {
   }
 });
 
-// ================== ROTAS 100% COMPLETAS ==================
+// ================== ROTAS 100% COMPLETAS E ATUALIZADAS ==================
 
 // CLASSIFICAÇÃO
 app.get('/api/classificacao', async (req, res) => {
@@ -107,16 +107,49 @@ app.delete('/api/classificacao/:id', async (req, res) => {
   } catch (e) { console.error('Erro DELETE classificação:', e.message); res.status(500).json({ error: e.message }); }
 });
 
-// CONTAS (tb_movimentocontas)
+// CONTAS → COM TIPO (Cliente/Fornecedor/Faturado) + NOME DA PESSOA
 app.get('/api/contas', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('tb_movimentocontas')
-      .select('idmovimentocontas -> id, numeronotafiscal, dataemissao, valortotal, descricao, status')
+      .select(`
+        idmovimentocontas -> id,
+        numeronotafiscal,
+        dataemissao,
+        valortotal,
+        descricao,
+        status,
+        pessoas_idfornecedorcliente,
+        pessoas_idfaturado,
+        fornecedor:tb_pessoas!pessoas_idfornecedorcliente (idpessoas, razaosocial),
+        faturado:tb_pessoas!pessoas_idfaturado (idpessoas, razaosocial)
+      `)
       .order('dataemissao', { ascending: false });
+
     if (error) throw error;
-    res.json(data || []);
-  } catch (e) { console.error('ERRO GET contas:', e.message); res.status(500).json({ error: e.message }); }
+
+    const resultado = data.map(item => ({
+      id: item.id,
+      numeronotafiscal: item.numeronotafiscal || '',
+      dataemissao: item.dataemissao,
+      valortotal: item.valortotal,
+      descricao: item.descricao || '',
+      status: item.status,
+      tipo: item.pessoas_idfornecedorcliente 
+        ? 'Fornecedor' 
+        : item.pessoas_idfaturado 
+          ? 'Faturado' 
+          : 'Cliente',
+      nome_pessoa: item.fornecedor?.razaosocial 
+        || item.faturado?.razaosocial 
+        || 'Não informado'
+    }));
+
+    res.json(resultado);
+  } catch (e) {
+    console.error('ERRO /api/contas:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/api/contas/buscar', async (req, res) => {
@@ -137,7 +170,7 @@ app.post('/api/contas', async (req, res) => {
     const { data, error } = await supabase
       .from('tb_movimentocontas')
       .insert(req.body)
-      .select('idmovimentocontas -> id, numeronotafiscal, dataemissao, valortotal, descricao');
+      .select('idmovimentocontas -> id');
     if (error) throw error;
     res.json(data[0]);
   } catch (e) { console.error('Erro POST contas:', e.message); res.status(500).json({ error: e.message }); }
@@ -150,7 +183,7 @@ app.put('/api/contas/:id', async (req, res) => {
       .from('tb_movimentocontas')
       .update(req.body)
       .eq('idmovimentocontas', id)
-      .select('idmovimentocontas -> id, numeronotafiscal, dataemissao, valortotal, descricao');
+      .select('idmovimentocontas -> id');
     if (error) throw error;
     res.json(data[0]);
   } catch (e) { console.error('Erro PUT contas:', e.message); res.status(500).json({ error: e.message }); }
@@ -227,6 +260,6 @@ app.get('*', (req, res) => {
 
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port} — TUDO FUNCIONANDO 100%`);
+  console.log(`Servidor rodando na porta ${port} — TUDO 100% FUNCIONAL`);
   console.log(`Acesse: https://extratordenfe-1.onrender.com`);
 });

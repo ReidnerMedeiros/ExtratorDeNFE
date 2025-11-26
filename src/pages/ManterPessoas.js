@@ -92,17 +92,21 @@ export default function ManterPessoas() {
         </div>
       </div>
 
-      <TabelaGenerica
-        colunas={[
-          { campo: "id", label: "ID" },
-          { campo: "nome", label: "Nome" },
-          { campo: "documento", label: "Documento" },
-        ]}
-        dados={dados}
-        onEditar={(item) => setForm({ ...item })}
-        onExcluir={excluir}
-        loading={loading}
-      />
+<TabelaGenerica
+  colunas={[
+    { campo: "id", label: "ID" },
+    { campo: "numeronotafiscal", label: "Nº Nota" },
+    { campo: "dataemissao", label: "Emissão", tipo: "data" },
+    { campo: "nome_pessoa", label: "Pessoa" },
+    { campo: "tipo", label: "Tipo" },
+    { campo: "valortotal", label: "Valor", tipo: "moeda" },
+    { campo: "status", label: "Status" },
+  ]}
+  dados={dados}
+  onEditar={(item) => abrirEdicao(item)}
+  onExcluir={excluir}
+  loading={loading}
+/>
     </div>
   );
 }
