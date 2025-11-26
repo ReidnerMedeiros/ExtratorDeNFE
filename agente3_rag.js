@@ -91,7 +91,7 @@ async function agente3_rag(pergunta) {
       : 'Nenhum registro encontrado.';
 
     // === GEMINI RESPONDE COM INTELIGÊNCIA ===
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const prompt = `
 Você é um assistente financeiro rural extremamente inteligente e objetivo.
 Responda em português brasileiro, de forma clara, natural e profissional.
