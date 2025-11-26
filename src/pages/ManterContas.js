@@ -80,15 +80,23 @@ export default function ManterContas() {
       </div>
 
       <TabelaGenerica
-        colunas={[
-          { campo: "id", label: "ID" },
-          { campo: "descricao", label: "Descrição" },
-        ]}
-        dados={dados}
-        onEditar={(item) => setForm(item)}
-        onExcluir={excluir}
-        loading={loading}
-      />
+  colunas={[
+    { campo: "id", label: "ID", largura: "80px" },
+    { campo: "numeronotafiscal", label: "Nº Nota" },
+    { campo: "dataemissao", label: "Emissão" },
+    { campo: "nome_pessoa", label: "Pessoa" },
+    { campo: "tipo", label: "Tipo" },
+    { campo: "valortotal", label: "Valor Total", tipo: "moeda" },
+    { campo: "status", label: "Status" },
+  ]}
+  dados={dados}
+  onEditar={(item) => setForm({ 
+    id: item.id, 
+    descricao: item.descricao 
+  })}
+  onExcluir={excluir}
+  loading={loading}
+/>
     </div>
   );
 }

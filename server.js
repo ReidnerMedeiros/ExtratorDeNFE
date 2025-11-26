@@ -170,25 +170,46 @@ app.get('/api/contas', async (req, res) => {
   }
 });
 
-app.get('/api/contas/buscar', async (req, res) => {
+app.get('/api/contas', async (req, res) => {
   try {
-    const { termo } = req.query;
     const { data, error } = await supabase
       .from('tb_movimentocontas')
-      .select('idmovimentocontas, numeronotafiscal, dataemissao, valortotal')
-      .ilike('numeronotafiscal', `%${termo}%`)
+      .select(`
+        idmovimentocontas,
+        numeronotafiscal,
+        dataemissao,
+        valortotal,
+        descricao,
+        status,
+        pessoas_idfornecedorcliente,
+        pessoas_idfaturado,
+        fornecedor:tb_pessoas!pessoas_idfornecedorcliente(razaosocial),
+        faturado:tb_pessoas!pessoas_idfaturado(razaosocial)
+      `)
       .order('dataemissao', { ascending: false });
 
     if (error) throw error;
-    const resultado = data.map(i => ({
-      id: i.idmovimentocontas,
-      numeronotafiscal: i.numeronotafiscal,
-      dataemissao: i.dataemissao,
-      valortotal: i.valortotal
+
+    const resultado = data.map(item => ({
+      id: item.idmovimentocontas,
+      numeronotafiscal: item.numeronotafiscal || '—',
+      dataemissao: new Date(item.dataemissao).toLocaleDateString('pt-BR'),
+      valortotal: Number(item.valortotal),
+      descricao: item.descricao || 'Sem descrição',
+      status: item.status,
+      tipo: item.pessoas_idfornecedorcliente 
+        ? 'Fornecedor' 
+        : item.pessoas_idfaturado 
+          ? 'Faturado' 
+          : 'Cliente',
+      nome_pessoa: item.fornecedor?.razaosocial 
+        || item.faturado?.razaosocial 
+        || 'Não informado'
     }));
+
     res.json(resultado);
   } catch (e) {
-    console.error('Erro buscar contas:', e.message);
+    console.error('ERRO /api/contas:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
