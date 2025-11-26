@@ -1,5 +1,6 @@
+// src/pages/ManterPessoas.js
 import React, { useState, useEffect } from "react";
-import axios from "axios" ;
+import axios from "axios";
 import TabelaGenerica from "../components/TabelaGenerica";
 
 export default function ManterPessoas() {
@@ -7,7 +8,13 @@ export default function ManterPessoas() {
   const [busca, setBusca] = useState("");
   const [dados, setDados] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ id: null, nome: "", documento: "", tipo: "FORNECEDOR" });
+  const [form, setForm] = useState({
+    id: null,
+    razaosocial: "",
+    fantasia: "",
+    documento: "",
+    tipo: "FORNECEDOR"
+  });
 
   const carregar = async () => {
     setLoading(true);
@@ -25,15 +32,34 @@ export default function ManterPessoas() {
   };
 
   const salvar = async () => {
-    if (!form.nome.trim()) return alert("Preencha o nome");
-    const payload = { nome: form.nome.trim(), documento: form.documento.trim() };
-    if (form.id) {
-      await axios.put(`/api/pessoas/${form.id}`, payload);
-    } else {
-      await axios.post("/api/pessoas", { ...payload, tipo });
+    const payload = {
+      razaosocial: form.razaosocial.trim(),
+      fantasia: form.fantasia.trim(),
+      documento: form.documento.replace(/\D/g, ""), // remove pontos, barras, etc.
+      tipo: form.tipo
+    };
+
+    try {
+      if (form.id) {
+        await axios.put(`/api/pessoas/${form.id}`, payload);
+      } else {
+        await axios.post("/api/pessoas", payload);
+      }
+      limparForm();
+      carregar();
+    } catch (e) {
+      alert("Erro ao salvar: " + (e.response?.data?.error || e.message));
     }
-    setForm({ id: null, nome: "", documento: "", tipo });
-    carregar();
+  };
+
+  const editar = (item) => {
+    setForm({
+      id: item.id,
+      razaosocial: item.razaosocial || "",
+      fantasia: item.fantasia || "",
+      documento: item.documento || "",
+      tipo: item.tipo
+    });
   };
 
   const excluir = async (id) => {
@@ -41,6 +67,16 @@ export default function ManterPessoas() {
       await axios.delete(`/api/pessoas/${id}`);
       carregar();
     }
+  };
+
+  const limparForm = () => {
+    setForm({
+      id: null,
+      razaosocial: "",
+      fantasia: "",
+      documento: "",
+      tipo: tipo // mantém o filtro atual
+    });
   };
 
   useEffect(() => {
@@ -59,7 +95,7 @@ export default function ManterPessoas() {
         </select>
 
         <input
-          placeholder="Buscar por nome ou documento..."
+          placeholder="Buscar por nome ou CNPJ/CPF..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           onKeyPress={(e) => e.key === "Enter" && buscar()}
@@ -71,42 +107,45 @@ export default function ManterPessoas() {
       <div className="form-cadastro">
         <h2>{form.id ? "Editar" : "Nova"} Pessoa - {tipo}</h2>
         <input
-          placeholder="Nome / Razão Social"
-          value={form.nome}
-          onChange={(e) => setForm({ ...form, nome: e.target.value })}
+          placeholder="Razão Social *"
+          value={form.razaosocial}
+          onChange={(e) => setForm({ ...form, razaosocial: e.target.value })}
         />
         <input
-          placeholder="CNPJ / CPF (opcional)"
-          value={form.documento}
-          onChange={(e) => setForm({ ...form, documento: e.target.value })}
+          placeholder="Nome Fantasia"
+          value={form.fantasia}
+          onChange={(e) => setForm({ ...form, fantasia: e.target.value })}
         />
-        <div>
-          <button onClick={salvar} disabled={!form.nome.trim()}>
+        <input
+          placeholder="CNPJ ou CPF (apenas números)"
+          value={form.documento}
+          onChange={(e) => setForm({ ...form, documento: e.target.value.replace(/\D/g, "") })}
+        />
+        <div className="botoes">
+          <button onClick={salvar} disabled={!form.razaosocial.trim()}>
             {form.id ? "Atualizar" : "Criar"}
           </button>
           {form.id && (
-            <button onClick={() => setForm({ id: null, nome: "", documento: "", tipo })} style={{ marginLeft: 10 }}>
+            <button onClick={limparForm} className="secundario">
               Cancelar
             </button>
           )}
         </div>
       </div>
 
-<TabelaGenerica
-  colunas={[
-    { campo: "id", label: "ID" },
-    { campo: "numeronotafiscal", label: "Nº Nota" },
-    { campo: "dataemissao", label: "Emissão", tipo: "data" },
-    { campo: "nome_pessoa", label: "Pessoa" },
-    { campo: "tipo", label: "Tipo" },
-    { campo: "valortotal", label: "Valor", tipo: "moeda" },
-    { campo: "status", label: "Status" },
-  ]}
-  dados={dados}
-  onEditar={(item) => abrirEdicao(item)}
-  onExcluir={excluir}
-  loading={loading}
-/>
+      <TabelaGenerica
+        colunas={[
+          { campo: "id", label: "ID" },
+          { campo: "razaosocial", label: "Razão Social" },
+          { campo: "fantasia", label: "Nome Fantasia" },
+          { campo: "documento", label: "CNPJ/CPF" },
+          { campo: "tipo", label: "Tipo" },
+        ]}
+        dados={dados}
+        onEditar={editar}        
+        onExcluir={excluir}      
+        loading={loading}
+      />
     </div>
   );
 }
