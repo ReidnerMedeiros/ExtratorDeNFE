@@ -1,3 +1,4 @@
+// agente3_rag.js — VERSÃO FINAL OFICIAL COM GEMINI TURBINADO
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -7,41 +8,36 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function agente3_rag(pergunta) {
   try {
-    if (!pergunta?.trim()) return { resposta: 'Digite uma pergunta válida.', dados: [] };
+    if (!pergunta?.trim()) return { resposta: 'Faça uma pergunta válida.', dados: [] };
 
     const texto = removerAcentos(pergunta.toLowerCase().trim());
     console.log('RAG → Pergunta:', texto);
 
-    const filtros = {
-      status_conta: detectarStatusConta(texto),
-      categoria: extrairCategoria(texto),
-      nome_pessoa: extrairNomePessoa(texto),
-      valor_min: extrairNumero(texto, ['acima de', 'maior que', 'mais de']),
-      valor_max: extrairNumero(texto, ['abaixo de', 'menor que', 'até']),
-      data_inicio: extrairData(texto, ['depois de', 'após', 'desde', 'a partir de']),
-      data_fim: extrairData(texto, ['antes de', 'até', 'em', 'no mês de']),
-      quer_total: /total|quanto|soma|gasto|devo/i.test(texto),
-      quer_resumo: /resumo|análise|relatorio/i.test(texto)
-    };
+    // === DETECÇÃO INTELIGENTE ===
+    const categoria = extrairCategoria(texto);
+    const tipoMovimento = detectarTipoMovimento(texto);
+    const nomePessoa = extrairNomePessoa(texto);
+    const valorMin = extrairNumero(texto, ['acima de', 'maior que', 'mais de']);
+    const valorMax = extrairNumero(texto, ['abaixo de', 'menor que', 'até', 'máximo']);
+    const dataInicio = extrairData(texto, ['depois de', 'após', 'desde']);
+    const dataFim = extrairData(texto, ['antes de', 'até', 'em']);
+    const querTotal = /total|quanto|soma|gasto|devo|recebi/i.test(texto);
 
-    // === PRIMEIRO: BUSCA OS IDs DAS CONTAS COM A CATEGORIA CERTA ===
-    let idsComCategoria = [];
-    if (filtros.categoria) {
-      const { data: idsData, error: err1 } = await supabase
-        .from('tb_movimentocontas_classificacao')
-        .select('movimentocontas_idmovimentocontas')
-        .eq('classificacao_idclassificacao', 
-          supabase
-            .from('tb_classificacao')
-            .select('idclassificacao')
-            .eq('descricao', filtros.categoria)
-            .eq('tipo', 'DESPESA')
-            .single()
-        );
+    // === BUSCA IDs POR CATEGORIA (se houver) ===
+    let idsPorCategoria = [];
+    if (categoria) {
+      const { data: cat } = await supabase
+        .from('tb_classificacao')
+        .select('idclassificacao')
+        .eq('descricao', categoria)
+        .single();
 
-      if (err1) console.error("Erro ao buscar categoria:", err1);
-      else if (idsData) {
-        idsComCategoria = idsData.map(item => item.movimentocontas_idmovimentocontas);
+      if (cat) {
+        const { data } = await supabase
+          .from('tb_movimentocontas_classificacao')
+          .select('movimentocontas_idmovimentocontas')
+          .eq('classificacao_idclassificacao', cat.idclassificacao);
+        idsPorCategoria = data?.map(i => i.movimentocontas_idmovimentocontas) || [];
       }
     }
 
@@ -57,148 +53,129 @@ async function agente3_rag(pergunta) {
         status,
         fornecedor:tb_pessoas!pessoas_idfornecedorcliente(razaosocial, fantasia),
         faturado:tb_pessoas!pessoas_idfaturado(razaosocial, fantasia),
-        parcelas:tb_parcelascontas(valorparcela, valorpago, datavencimento, statusparcela)
+        parcelas:tb_parcelascontas(valorparcela, valorpago, statusparcela)
       `)
       .order('dataemissao', { ascending: false });
 
-    if (filtros.status_conta) query = query.eq('status', filtros.status_conta);
-    if (filtros.nome_pessoa) {
+    // Aplica filtros
+    if (idsPorCategoria.length > 0) query = query.in('idmovimentocontas', idsPorCategoria);
+    if (tipoMovimento === 'fornecedor') query = query.not('pessoas_idfornecedorcliente', 'is', null);
+    if (tipoMovimento === 'cliente') query = query.not('pessoas_idfaturado', 'is', null);
+    if (nomePessoa) {
       query = query.or(`
-        fornecedor.razaosocial.ilike.%${filtros.nome_pessoa}%,
-        fornecedor.fantasia.ilike.%${filtros.nome_pessoa}%,
-        faturado.razaosocial.ilike.%${filtros.nome_pessoa}%
+        fornecedor.razaosocial.ilike.%${nomePessoa}%,
+        fornecedor.fantasia.ilike.%${nomePessoa}%,
+        faturado.razaosocial.ilike.%${nomePessoa}%
       `);
     }
-    if (filtros.valor_min) query = query.gte('valortotal', filtros.valor_min);
-    if (filtros.valor_max) query = query.lte('valortotal', filtros.valor_max);
-    if (filtros.data_inicio) query = query.gte('dataemissao', filtros.data_inicio);
-    if (filtros.data_fim) query = query.lte('dataemissao', filtros.data_fim);
+    if (valorMin) query = query.gte('valortotal', valorMin);
+    if (valorMax) query = query.lte('valortotal', valorMax);
+    if (dataInicio) query = query.gte('dataemissao', dataInicio);
+    if (dataFim) query = query.lte('dataemissao', dataFim);
 
-    // APLICA FILTRO DE CATEGORIA POR ID (CORRETO E SEGURO)
-    if (idsComCategoria.length > 0) {
-      query = query.in('idmovimentocontas', idsComCategoria);
-    }
-
-    const { data: contas, error } = await query.limit(100);
+    const { data: contas, error } = await query.limit(50);
     if (error) throw error;
 
-    // === BUSCA CATEGORIAS DAS CONTAS ENCONTRADAS ===
-    const idsContas = contas.map(c => c.idmovimentocontas);
-    let categoriasMap = {};
-    if (idsContas.length > 0) {
-      const { data: cats } = await supabase
-        .from('tb_movimentocontas_classificacao')
-        .select('movimentocontas_idmovimentocontas, tb_classificacao!inner(descricao)')
-        .in('movimentocontas_idmovimentocontas', idsContas);
-
-      cats?.forEach(item => {
-        const id = item.movimentocontas_idmovimentocontas;
-        if (!categoriasMap[id]) categoriasMap[id] = [];
-        categoriasMap[id].push(item.tb_classificacao.descricao);
-      });
-    }
-
-    // === CÁLCULOS ===
+    // === MONTA CONTEXTO PARA O GEMINI ===
     const totalValor = contas.reduce((s, c) => s + Number(c.valortotal || 0), 0);
-    const totalPago = contas.reduce((s, c) => s + (c.parcelas?.reduce((sp, p) => sp + Number(p.valorpago || 0), 0) || 0), 0);
-    const totalPendente = totalValor - totalPago;
+    const totalPago = contas.reduce((s, c) => s + (c.parcelas?.reduce((p, par) => p + Number(par.valorpago || 0), 0) || 0), 0);
 
-    // === RESPOSTA ===
-    let resposta = '';
-    if (contas.length === 0) {
-      resposta = 'Não encontrei notas com esses critérios.';
-    } else if (filtros.quer_total) {
-      resposta = `Total de ${filtros.categoria || 'encontrado'}: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
-                 `Já pago: R$ ${totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n` +
-                 `Pendente: R$ ${totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-    } else {
-      resposta = `Encontradas ${contas.length} notas de ${filtros.categoria || 'gastos'}:\n` +
-        contas.slice(0, 8).map(c => {
+    const contexto = contas.length > 0
+      ? `Encontradas ${contas.length} notas:\n` + contas.slice(0, 8).map(c => {
           const pessoa = c.fornecedor?.razaosocial || c.faturado?.razaosocial || '—';
-          const cat = categoriasMap[c.idmovimentocontas]?.join(', ') || 'Sem categoria';
-          return `• NF ${c.numeronotafiscal || '-'} | R$ ${Number(c.valortotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${new Date(c.dataemissao).toLocaleDateString('pt-BR')} | ${pessoa} | ${cat}`;
-        }).join('\n');
-      if (contas.length > 8) resposta += `\n... e mais ${contas.length - 8} notas.`;
-    }
+          const valor = Number(c.valortotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+          const data = new Date(c.dataemissao).toLocaleDateString('pt-BR');
+          return `• NF ${c.numeronotafiscal || '-'} | R$ ${valor} | ${data} | ${pessoa} | ${c.status || '—'}`;
+        }).join('\n') + 
+        `\n\nTotal: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Pago: R$ ${totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      : 'Nenhum registro encontrado.';
+
+    // === GEMINI RESPONDE COM INTELIGÊNCIA ===
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `
+Você é um assistente financeiro rural extremamente inteligente e objetivo.
+Responda em português brasileiro, de forma clara, natural e profissional.
+Use os dados abaixo para responder à pergunta do usuário.
+
+PERGUNTA DO USUÁRIO:
+"${pergunta}"
+
+DADOS ENCONTRADOS:
+${contexto}
+
+INSTRUÇÕES:
+- Se pedir total, responda o valor exato.
+- Se pedir lista, resuma as principais.
+- Se for "fornecedor", entenda como despesas.
+- Se for "cliente", entenda como receitas.
+- Se não houver dados, diga: "Não encontrei registros com esses critérios."
+- Nunca invente informações.
+- Seja breve e direto.
+
+Resposta:`;
+
+    const result = await model.generateContent(prompt);
+    const resposta = result.response?.text?.() || 'Não consegui processar a resposta.';
 
     return {
-      resposta,
-      dados: contas.slice(0, 20).map(c => ({
-        ...c,
-        categorias: categoriasMap[c.idmovimentocontas] || []
-      })),
-      estatisticas: { totalValor, totalPago, totalPendente }
+      resposta: resposta.trim(),
+      dados: contas.slice(0, 20),
+      estatisticas: { totalValor, totalPago, totalPendente: totalValor - totalPago, totalNotas: contas.length }
     };
 
   } catch (e) {
     console.error('Erro RAG:', e.message);
-    return { resposta: 'Erro ao processar. Tente novamente.', dados: [] };
+    return { resposta: 'Desculpe, ocorreu um erro ao processar sua consulta. Tente novamente.', dados: [] };
   }
 }
 
-// === FUNÇÃO DE CATEGORIA (100% FUNCIONAL) ===
-function extrairCategoria(texto) {
-  const mapa = {
-    insumo: 'INSUMOS AGRÍCOLAS', insumos: 'INSUMOS AGRÍCOLAS',
-    fertilizante: 'INSUMOS AGRÍCOLAS', adubo: 'INSUMOS AGRÍCOLAS',
-    semente: 'INSUMOS AGRÍCOLAS', defensivo: 'INSUMOS AGRÍCOLAS',
-    ureia: 'INSUMOS AGRÍCOLAS', glifosato: 'INSUMOS AGRÍCOLAS',
-
-    manutencao: 'MANUTENÇÃO E OPERAÇÃO', manutenção: 'MANUTENÇÃO E OPERAÇÃO',
-    diesel: 'MANUTENÇÃO E OPERAÇÃO', oleo: 'MANUTENÇÃO E OPERAÇÃO',
-    pneu: 'MANUTENÇÃO E OPERAÇÃO', peça: 'MANUTENÇÃO E OPERAÇÃO',
-
-    frete: 'SERVIÇOS OPERACIONAIS', colheita: 'SERVIÇOS OPERACIONAIS',
-    pulverização: 'SERVIÇOS OPERACIONAIS', pulverizacao: 'SERVIÇOS OPERACIONAIS',
-
-    salario: 'RECURSOS HUMANOS', salários: 'RECURSOS HUMANOS',
-    arrendamento: 'INFRAESTRUTURA E UTILIDADES',
-    energia: 'INFRAESTRUTURA E UTILIDADES',
-    seguro: 'SEGUROS E PROTEÇÃO',
-    imposto: 'IMPOSTOS E TAXAS', itr: 'IMPOSTOS E TAXAS',
-    trator: 'INVESTIMENTOS', maquina: 'INVESTIMENTOS'
-  };
-
-  for (const [chave, valor] of Object.entries(mapa)) {
-    if (texto.includes(chave)) return valor;
-  }
-  return null;
-}
-
+// === FUNÇÕES AUXILIARES PERFEITAS ===
 function removerAcentos(str) {
   return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-function detectarStatusConta(texto) {
-  if (/pago|pagas/i.test(texto)) return 'PAGO';
-  if (/pendente|aberto/i.test(texto)) return 'PENDENTE';
-  if (/atrasado|vencido/i.test(texto)) return 'ATRASADO';
+function extrairCategoria(texto) {
+  const mapa = {
+    insumo: 'INSUMOS AGRÍCOLAS', insumos: 'INSUMOS AGRÍCOLAS', fertilizante: 'INSUMOS AGRÍCOLAS',
+    semente: 'INSUMOS AGRÍCOLAS', defensivo: 'INSUMOS AGRÍCOLAS', adubo: 'INSUMOS AGRÍCOLAS',
+    ureia: 'INSUMOS AGRÍCOLAS', glifosato: 'INSUMOS AGRÍCOLAS',
+    manutencao: 'MANUTENÇÃO E OPERAÇÃO', manutenção: 'MANUTENÇÃO E OPERAÇÃO', diesel: 'MANUTENÇÃO E OPERAÇÃO',
+    oleo: 'MANUTENÇÃO E OPERAÇÃO', pneu: 'MANUTENÇÃO E OPERAÇÃO', peça: 'MANUTENÇÃO E OPERAÇÃO',
+    frete: 'SERVIÇOS OPERACIONAIS', colheita: 'SERVIÇOS OPERACIONAIS', pulverização: 'SERVIÇOS OPERACIONAIS',
+    salario: 'RECURSOS HUMANOS', salários: 'RECURSOS HUMANOS', encargos: 'RECURSOS HUMANOS',
+    arrendamento: 'INFRAESTRUTURA E UTILIDADES', energia: 'INFRAESTRUTURA E UTILIDADES',
+    seguro: 'SEGUROS E PROTEÇÃO', imposto: 'IMPOSTOS E TAXAS', itr: 'IMPOSTOS E TAXAS',
+    trator: 'INVESTIMENTOS', maquina: 'INVESTIMENTOS'
+  };
+  for (const [k, v] of Object.entries(mapa)) if (texto.includes(k)) return v;
+  return null;
+}
+
+function detectarTipoMovimento(texto) {
+  if (/fornecedor|compra|paguei|despesa|compras/i.test(texto)) return 'fornecedor';
+  if (/cliente|venda|recebi|receita|faturado/i.test(texto)) return 'cliente';
   return null;
 }
 
 function extrairNomePessoa(texto) {
-  const match = texto.match(/(?:de|para|com|da|do)\s+([a-zA-ZÀ-ú\s]+)/i);
-  return match ? match[1].trim() : null;
+  const match = texto.match(/(?:de|para|do|da|com)\s+([a-zà-ú]{4,})/i);
+  if (!match) return null;
+  const nome = match[1].trim();
+  return ['fornecedor', 'cliente'].includes(nome) ? null : nome;
 }
 
 function extrairNumero(texto, palavras) {
   for (const p of palavras) {
-    const idx = texto.indexOf(p);
-    if (idx > -1) {
-      const num = texto.substring(idx).match(/\d+/);
-      if (num) return Number(num[0]);
-    }
+    const match = texto.match(new RegExp(p + '\\s*(\\d+)', 'i'));
+    if (match) return Number(match[1]);
   }
   return null;
 }
 
 function extrairData(texto, palavras) {
   for (const p of palavras) {
-    const idx = texto.indexOf(p);
-    if (idx > -1) {
-      const match = texto.substring(idx).match(/\d{2}\/\d{2}\/\d{4}/);
-      if (match) return match[0].split('/').reverse().join('-');
-    }
+    const match = texto.match(new RegExp(p + '\\s*(\\d{2}[/\.-]\\d{2}[/\.-]\\d{4})', 'i'));
+    if (match) return match[1].split(/[\/\.-]/).reverse().join('-');
   }
   return null;
 }
