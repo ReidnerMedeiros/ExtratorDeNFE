@@ -59,13 +59,15 @@ app.post('/api/consulta-rag', async (req, res) => {
   }
 });
 
-// ================== ROTAS 100% CORRETAS E TESTADAS ==================
+// ================== ROTAS CORRIGIDAS 100% (usando -> id) ==================
 
-// CLASSIFICAÇÃO (OK)
+// CLASSIFICAÇÃO
 app.get('/api/classificacao', async (req, res) => {
   try {
     const { tipo, status = 'ATIVO' } = req.query;
-    let q = supabase.from('tb_classificacao').select('idclassificacao:id, descricao, tipo, status');
+    let q = supabase
+      .from('tb_classificacao')
+      .select('idclassificacao -> id, descricao, tipo, status');
     if (tipo) q = q.eq('tipo', tipo);
     if (status) q = q.eq('status', status);
     const { data, error } = await q;
@@ -77,14 +79,20 @@ app.get('/api/classificacao', async (req, res) => {
   }
 });
 
-// CONTAS → tb_movimentocontas com ID FORÇADO
+// CONTAS → tb_movimentocontas
 app.get('/api/contas', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('tb_movimentocontas')
-      .select('idmovimentocontas:id::int, numeronotafiscal, dataemissao, valortotal, descricao, status')
+      .select(`
+        idmovimentocontas -> id,
+        numeronotafiscal,
+        dataemissao,
+        valortotal,
+        descricao,
+        status
+      `)
       .order('dataemissao', { ascending: false });
-
     if (error) throw error;
     res.json(data || []);
   } catch (error) {
@@ -98,10 +106,9 @@ app.get('/api/contas/buscar', async (req, res) => {
     const { termo } = req.query;
     const { data, error } = await supabase
       .from('tb_movimentocontas')
-      .select('idmovimentocontas:id::int, numeronotafiscal, dataemissao, valortotal')
+      .select('idmovimentocontas -> id, numeronotafiscal, dataemissao, valortotal')
       .ilike('numeronotafiscal', `%${termo}%`)
       .order('dataemissao', { ascending: false });
-
     if (error) throw error;
     res.json(data || []);
   } catch (error) {
@@ -110,16 +117,15 @@ app.get('/api/contas/buscar', async (req, res) => {
   }
 });
 
-// PESSOAS → com ID FORÇADO e razaosocial
+// PESSOAS
 app.get('/api/pessoas', async (req, res) => {
   try {
     const { tipo, status = 'ATIVO' } = req.query;
     let q = supabase
       .from('tb_pessoas')
-      .select('idpessoas:id::int, razaosocial, fantasia, documento, tipo, status')
+      .select('idpessoas -> id, razaosocial, fantasia, documento, tipo, status')
       .eq('status', status);
     if (tipo) q = q.eq('tipo', tipo);
-
     const { data, error } = await q;
     if (error) throw error;
     res.json(data || []);
@@ -134,12 +140,10 @@ app.get('/api/pessoas/buscar', async (req, res) => {
     const { termo, tipo } = req.query;
     let q = supabase
       .from('tb_pessoas')
-      .select('idpessoas:id::int, razaosocial, documento, tipo')
+      .select('idpessoas -> id, razaosocial, documento, tipo')
       .eq('status', 'ATIVO');
-
     if (termo) q = q.or(`razaosocial.ilike.%${termo}%,documento.ilike.%${termo}%`);
     if (tipo) q = q.eq('tipo', tipo);
-
     const { data, error } = await q;
     if (error) throw error;
     res.json(data || []);
@@ -152,13 +156,16 @@ app.get('/api/pessoas/buscar', async (req, res) => {
 app.post('/api/pessoas', async (req, res) => {
   try {
     const { razaosocial, fantasia, documento, tipo } = req.body;
-    const { data, error } = await supabase.from('tb_pessoas').insert({
-      tipo,
-      razaosocial: razaosocial.trim(),
-      fantasia: fantasia?.trim() || null,
-      documento: documento.trim(),
-      status: 'ATIVO'
-    }).select('idpessoas:id::int, razaosocial, fantasia, documento, tipo');
+    const { data, error } = await supabase
+      .from('tb_pessoas')
+      .insert({
+        tipo,
+        razaosocial: razaosocial.trim(),
+        fantasia: fantasia?.trim() || null,
+        documento: documento.trim(),
+        status: 'ATIVO'
+      })
+      .select('idpessoas -> id, razaosocial, fantasia, documento, tipo');
     if (error) throw error;
     res.json(data[0]);
   } catch (error) {
@@ -171,10 +178,15 @@ app.put('/api/pessoas/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { razaosocial, fantasia, documento } = req.body;
-    const { data, error } = await supabase.from('tb_pessoas')
-      .update({ razaosocial: razaosocial.trim(), fantasia: fantasia?.trim(), documento: documento.trim() })
+    const { data, error } = await supabase
+      .from('tb_pessoas')
+      .update({
+        razaosocial: razaosocial.trim(),
+        fantasia: fantasia?.trim() || null,
+        documento: documento.trim()
+      })
       .eq('idpessoas', id)
-      .select('idpessoas:id::int, razaosocial, fantasia, documento');
+      .select('idpessoas -> id, razaosocial, fantasia, documento');
     if (error) throw error;
     res.json(data[0]);
   } catch (error) {
@@ -186,7 +198,10 @@ app.put('/api/pessoas/:id', async (req, res) => {
 app.delete('/api/pessoas/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabase.from('tb_pessoas').update({ status: 'DESATIVADO' }).eq('idpessoas', id);
+    const { error } = await supabase
+      .from('tb_pessoas')
+      .update({ status: 'DESATIVADO' })
+      .eq('idpessoas', id);
     if (error) throw error;
     res.json({ sucesso: true });
   } catch (error) {
