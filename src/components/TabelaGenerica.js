@@ -1,18 +1,19 @@
-// src/components/TabelaGenerica.jsx  ← VERSÃO FINAL (atende todos os itens a–j)
+// src/components/TabelaGenerica.js   ← ARQUIVO .JS (exatamente como você quer)
 import React, { useState, useMemo } from "react";
 
 export default function TabelaGenerica({ colunas, dados, onEditar, onExcluir, loading }) {
   const [ordenacao, setOrdenacao] = useState({ campo: "id", direcao: "asc" });
-  const [buscaLocal, setBuscaLocal] = useState("");
+  const [busca, setBusca] = useState("");
 
-  const dadosFiltrados = useMemo(() => {
+  // Filtra + ordena os dados
+  const dadosProcessados = useMemo(() => {
     let filtrados = [...dados];
 
-    // Filtro local (busca em qualquer coluna)
-    if (buscaLocal.trim()) {
-      const termo = buscaLocal.toLowerCase();
+    // Busca em qualquer coluna
+    if (busca.trim()) {
+      const termo = busca.toLowerCase();
       filtrados = filtrados.filter(item =>
-        colunas.some(col => 
+        colunas.some(col =>
           item[col.campo]?.toString().toLowerCase().includes(termo)
         )
       );
@@ -30,7 +31,7 @@ export default function TabelaGenerica({ colunas, dados, onEditar, onExcluir, lo
     });
 
     return filtrados;
-  }, [dados, buscaLocal, ordenacao, colunas]);
+  }, [dados, busca, ordenacao, colunas]);
 
   const handleSort = (campo) => {
     setOrdenacao(prev => ({
@@ -39,53 +40,108 @@ export default function TabelaGenerica({ colunas, dados, onEditar, onExcluir, lo
     }));
   };
 
-  if (loading) return <p>Carregando...</p>;
+  if (loading) {
+    return <div style={{ padding: "20px", textAlign: "center" }}>Carregando dados...</div>;
+  }
 
   return (
-    <div>
+    <div style={{ marginTop: "20px" }}>
+      {/* Campo de busca local */}
       <input
+        type="text"
         placeholder="Buscar em qualquer coluna..."
-        value={buscaLocal}
-        onChange={(e) => setBuscaLocal(e.target.value)}
-        style={{ width: "100%", padding: "8px", marginBottom: "10px" }}
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        style={{
+          width: "100%",
+          padding: "12px",
+          fontSize: "16px",
+          borderRadius: "8px",
+          border: "1px solid #ccc",
+          marginBottom: "15px"
+        }}
       />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ background: "#f2f2f2" }}>
-            {colunas.map(col => (
-              <th
-                key={col.campo}
-                onClick={() => handleSort(col.campo)}
-                style={{ cursor: "pointer", padding: "10px", textAlign: "left" }}
-              >
-                {col.label} {ordenacao.campo === col.campo ? (ordenacao.direcao === "asc" ? "↑" : "↓") : "↕"}
-              </th>
-            ))}
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dadosFiltrados.length === 0 ? (
-            <tr><td colSpan={colunas.length + 1} style={{ textAlign: "center", padding: "20px" }}>
-              Nenhum registro encontrado
-            </td></tr>
-          ) : (
-            dadosFiltrados.map(item => (
-              <tr key={item.id}>
-                {colunas.map(col => (
-                  <td key={col.campo} style={{ padding: "8px", borderBottom: "1px solid #ddd" }}>
-                    {item[col.campo]}
-                  </td>
-                ))}
-                <td>
-                  <button onClick={() => onEditar(item)} style={{ marginRight: "5px" }}>Editar</button>
-                  <button onClick={() => onExcluir(item.id)} style={{ color: "red" }}>Excluir</button>
+
+      {/* Tabela */}
+      <div style={{ overflowX: "auto", borderRadius: "8px", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", background: "white" }}>
+          <thead>
+            <tr style={{ background: "#667eea", color: "white" }}>
+              {colunas.map(col => (
+                <th
+                  key={col.campo}
+                  onClick={() => handleSort(col.campo)}
+                  style={{
+                    padding: "14px",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    userSelect: "none"
+                  }}
+                >
+                  {col.label}
+                  {ordenacao.campo === col.campo && (
+                    <span style={{ marginLeft: "8px" }}>
+                      {ordenacao.direcao === "asc" ? "↑" : "↓"}
+                    </span>
+                  )}
+                </th>
+              ))}
+              <th style={{ padding: "14px", textAlign: "center" }}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dadosProcessados.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={colunas.length + 1}
+                  style={{ textAlign: "center", padding: "40px", color: "#888" }}
+                >
+                  Nenhum registro encontrado
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              dadosProcessados.map(item => (
+                <tr key={item.id} style={{ borderBottom: "1px solid #eee" }}>
+                  {colunas.map(col => (
+                    <td key={col.campo} style={{ padding: "12px" }}>
+                      {item[col.campo] || "-"}
+                    </td>
+                  ))}
+                  <td style={{ padding: "12px", textAlign: "center" }}>
+                    <button
+                      onClick={() => onEditar(item)}
+                      style={{
+                        marginRight: "8px",
+                        padding: "6px 12px",
+                        background: "#3498db",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => onExcluir(item.id)}
+                      style={{
+                        padding: "6px 12px",
+                        background: "#e74c3c",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Excluir
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
