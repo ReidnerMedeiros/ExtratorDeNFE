@@ -9,36 +9,35 @@ const agente1 = require('./agente1');
 const agente2 = require('./agente2');
 const agente3_rag = require('./agente3_rag');
 
+// === SUPABASE (adicionar aqui depois) ===
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
+
 const app = express();
 
-// Criar pasta uploads se não existir
+// Pasta uploads
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-
 const upload = multer({ dest: 'uploads/' });
 
-// CORS liberado para seu domínio e localhost
-app.use(cors()); // ← SIMPLES E FUNCIONA PERFEITO NO RENDER
-
+// Middlewares
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Servir o frontend construído
 app.use(express.static(path.join(__dirname, 'build')));
 
-// ================== ROTAS API ==================
+// ================== ROTAS EXISTENTES (PDF + RAG) ==================
 app.post('/api/processar-pdf', upload.single('pdf'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo PDF enviado' });
-
     const filePath = req.file.path;
     const jsonResponse = await agente1(filePath);
-
-    // Apagar arquivo temporário
     fs.unlinkSync(filePath);
-
     res.json(jsonResponse);
   } catch (error) {
     console.error('Erro no processamento do PDF:', error);
@@ -68,13 +67,171 @@ app.post('/api/consulta-rag', async (req, res) => {
   }
 });
 
-// Todas as outras rotas → React Router
+// ================== NOVAS ROTAS CADASTROS (Contas, Pessoas, Classificação) ==================
+
+// --- CLASSIFICAÇÃO ---
+app.get('/api/classificacao', async (req, res) => {
+  const { tipo, status } = req.query;
+  let query = supabase.from('classificacao').select('*');
+  if (tipo) query = query.eq('tipo', tipo);
+  if (status) query = query.eq('status', status);
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.get('/api/classificacao/buscar', async (req, res) => {
+  const { termo, tipo } = req.query;
+  let query = supabase.from('classificacao').select('*').ilike('descricao', `%${termo}%`);
+  if (tipo) query = query.eq('tipo', tipo);
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.post('/api/classificacao', async (req, res) => {
+  const { descricao, tipo } = req.body;
+  const { data, error } = await supabase
+    .from('classificacao')
+    .insert({ descricao: descricao.trim(), tipo, status: 'ATIVO' })
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.put('/api/classificacao/:id', async (req, res) => {
+  const { id } = req.params;
+  const { descricao } = req.body;
+  const { data, error } = await supabase
+    .from('classificacao')
+    .update({ descricao: descricao.trim() })
+    .eq('id', id)
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.delete('/api/classificacao/:id', async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase
+    .from('classificacao')
+    .update({ status: 'INATIVO' })
+    .eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ sucesso: true });
+});
+
+// --- CONTAS ---
+app.get('/api/contas', async (req, res) => {
+  const { status = 'ATIVO' } = req.query;
+  const { data, error } = await supabase.from('contas').select('*').eq('status', status);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.get('/api/contas/buscar', async (req, res) => {
+  const { termo } = req.query;
+  const { data, error } = await supabase
+    .from('contas')
+    .select('*')
+    .ilike('descricao', `%${termo}%`)
+    .eq('status', 'ATIVO');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.post('/api/contas', async (req, res) => {
+  const { descricao } = req.body;
+  const { data, error } = await supabase
+    .from('contas')
+    .insert({ descricao: descricao.trim(), status: 'ATIVO' })
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.put('/api/contas/:id', async (req, res) => {
+  const { id } = req.params;
+  const { descricao } = req.body;
+  const { data, error } = await supabase
+    .from('contas')
+    .update({ descricao: descricao.trim() })
+    .eq('id', id)
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.delete('/api/contas/:id', async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase
+    .from('contas')
+    .update({ status: 'INATIVO' })
+    .eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ sucesso: true });
+});
+
+// --- PESSOAS ---
+app.get('/api/pessoas', async (req, res) => {
+  const { tipo, status = 'ATIVO' } = req.query;
+  let query = supabase.from('pessoas').select('*').eq('status', status);
+  if (tipo) query = query.eq('tipo', tipo);
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.get('/api/pessoas/buscar', async (req, res) => {
+  const { termo, tipo } = req.query;
+  let query = supabase.from('pessoas').select('*').eq('status', 'ATIVO');
+  if (termo) query = query.or(`nome.ilike.%${termo}%,documento.ilike.%${termo}%`);
+  if (tipo) query = query.eq('tipo', tipo);
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data || []);
+});
+
+app.post('/api/pessoas', async (req, res) => {
+  const { nome, documento, tipo } = req.body;
+  const { data, error } = await supabase
+    .from('pessoas')
+    .insert({ nome: nome.trim(), documento: documento.trim(), tipo, status: 'ATIVO' })
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.put('/api/pessoas/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nome, documento } = req.body;
+  const { data, error } = await supabase
+    .from('pessoas')
+    .update({ nome: nome.trim(), documento: documento.trim() })
+    .eq('id', id)
+    .select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data[0]);
+});
+
+app.delete('/api/pessoas/:id', async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase
+    .from('pessoas')
+    .update({ status: 'INATIVO' })
+    .eq('id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ sucesso: true });
+});
+
+// ================== ROTAS FRONTEND ==================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
-// Porta do Render
+// ================== INICIAR SERVIDOR ==================
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
+  console.log(`Acesse: http://localhost:${port}`);
 });
