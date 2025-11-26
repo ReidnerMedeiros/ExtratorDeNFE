@@ -5,15 +5,11 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
-const agente1 = require('./agente1');
-const agente2 = require('./agente2');
-const agente3_rag = require('./agente3_rag');
-
-// === SUPABASE (adicionar aqui depois) ===
+// === SUPABASE (inicia logo, antes de qualquer coisa) ===
 const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_KEY // aceita anon ou service_role
 );
 
 const app = express();
@@ -31,10 +27,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'build')));
 
-// ================== ROTAS EXISTENTES (PDF + RAG) ==================
+// ====================== LAZY LOAD DOS AGENTES (só quando usar) ======================
+let agente1, agente2, agente3_rag;
+
+// Rota: Extrair PDF
 app.post('/api/processar-pdf', upload.single('pdf'), async (req, res) => {
   try {
+    if (!agente1) agente1 = require('./agente1'); // ← só carrega agora
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo PDF enviado' });
+
     const filePath = req.file.path;
     const jsonResponse = await agente1(filePath);
     fs.unlinkSync(filePath);
@@ -45,8 +46,10 @@ app.post('/api/processar-pdf', upload.single('pdf'), async (req, res) => {
   }
 });
 
+// Rota: Lançar registro
 app.post('/api/lancar-registro', async (req, res) => {
   try {
+    if (!agente2) agente2 = require('./agente2'); // ← só carrega agora
     const dados = req.body;
     const resultado = await agente2(dados);
     res.json(resultado);
@@ -56,8 +59,10 @@ app.post('/api/lancar-registro', async (req, res) => {
   }
 });
 
+// Rota: Consulta RAG
 app.post('/api/consulta-rag', async (req, res) => {
   try {
+    if (!agente3_rag) agente3_rag = require('./agente3_rag'); // ← só carrega agora
     const { pergunta } = req.body;
     const resultado = await agente3_rag(pergunta);
     res.json(resultado);
@@ -67,7 +72,7 @@ app.post('/api/consulta-rag', async (req, res) => {
   }
 });
 
-// ================== NOVAS ROTAS CADASTROS (Contas, Pessoas, Classificação) ==================
+// ================== ROTAS CADASTROS (agora funcionam 100%) ==================
 
 // --- CLASSIFICAÇÃO ---
 app.get('/api/classificacao', async (req, res) => {
@@ -224,7 +229,7 @@ app.delete('/api/pessoas/:id', async (req, res) => {
   res.json({ sucesso: true });
 });
 
-// ================== ROTAS FRONTEND ==================
+// ================== FRONTEND ==================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
@@ -233,5 +238,5 @@ app.get('*', (req, res) => {
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
-  console.log(`Acesse: http://localhost:${port}`);
+  console.log(`Acesse: https://extratordenfe-1.onrender.com`);
 });
